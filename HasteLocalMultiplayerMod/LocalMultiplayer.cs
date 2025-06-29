@@ -48,6 +48,7 @@ namespace HasteLocalMultiplayerMod
             ipEndpoint = new IPEndPoint(ipAddress, port);
             return true;
         }
+
         private static ushort GetAvailableTcpPort()
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -74,8 +75,6 @@ namespace HasteLocalMultiplayerMod
             UnityTransport unityTransport = networkManager.gameObject.AddComponent<UnityTransport>();
             networkManager.NetworkConfig.NetworkTransport = unityTransport;
             unityTransport.SetConnectionData(ip, port, listenEndpoint);
-
-            Debug.Log($"[Local/LAN Multiplayer] Port = {port}, IP = {ip}{(listenEndpoint != null ? $" Listen Endpoint: {listenEndpoint}" : "")}");
         }
 
         [ConsoleCommand]
