@@ -112,5 +112,13 @@ namespace HasteLocalMultiplayerMod
 
             HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, ip, port));
         }
+
+        [ConsoleCommand]
+        public static void Disconnect()
+        {
+            Debug.Log($"[{MOD_PREFIX}] Disconnecting");
+
+            HasteNetworking.SetState(HasteNetworking.State.Off, (networkManager) => { /* no-op */ });
+        }
     }
 }
