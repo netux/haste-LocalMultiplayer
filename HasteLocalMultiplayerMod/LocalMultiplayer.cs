@@ -25,6 +25,17 @@ namespace HasteLocalMultiplayerMod
             return (ushort)port;
         }
 
+        private static string[] GetInterNetworkIpAddresses()
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .Where((networkInterface) => networkInterface.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 || networkInterface.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
+                .SelectMany((networkInterface) => networkInterface.GetIPProperties().UnicastAddresses)
+                .Select((addressInfo) => addressInfo.Address)
+                .Where((address) => address.AddressFamily == AddressFamily.InterNetwork)
+                .Select((address) => address.ToString())
+                .ToArray();
+        }
+
         static void ConfigureNetworkManager(NetworkManager networkManager, string ip, ushort port, string? listenEndpoint = null)
         {
             UnityEngine.Object.Destroy(networkManager.NetworkConfig.NetworkTransport);
@@ -65,6 +76,16 @@ namespace HasteLocalMultiplayerMod
             }
 
             HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, ip, port, listenEndpoint));
+
+            var availableLanIps = GetInterNetworkIpAddresses();
+            if (availableLanIps.Length > 0)
+            {
+                Debug.Log($"[{MOD_PREFIX}] Connect via LAN with one of: {string.Join(", ", availableLanIps.Select((lanIp) => $"{lanIp}:{port}"))}");
+            }
+            else
+            {
+                Debug.LogWarning($"[{MOD_PREFIX}] No available intranet IPs available for LAN connection!");
+            }
         }
 
         [ConsoleCommand]
