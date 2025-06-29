@@ -86,17 +86,17 @@ namespace HasteLocalMultiplayerMod
         [ConsoleCommand]
         public static void StartServerAtPort(ushort port)
         {
-            StartServerAtIpPort(DEFAULT_HOST_IP, port);
-        }
-
-        [ConsoleCommand]
-        public static void StartServerAtIpPort(string ip, ushort port)
-        {
-            StartServerAtIpPortListenEndpoint(ip, port, null);
+            StartServerAtIpPortAndListenEndpoint(DEFAULT_HOST_IP, port);
         }
 
         [ConsoleCommand]
         public static void StartServerAtAddress(string address)
+        {
+            StartServerAtAddressAndListenEndpoint(address, null);
+        }
+
+        [ConsoleCommand]
+        public static void StartServerAtAddressAndListenEndpoint(string address, string? listenEndpoint = null)
         {
             if (!TryParseIPEndPoint(address, out IPEndPoint ipEndpoint))
             {
@@ -106,11 +106,10 @@ namespace HasteLocalMultiplayerMod
 
             string ipAddress = ipEndpoint.Address.ToString();
             ushort port = ipEndpoint.Port <= 0 ? DEFAULT_PORT : (ushort)ipEndpoint.Port;
-            StartServerAtIpPort(ipAddress, port);
+            StartServerAtIpPortAndListenEndpoint(ipAddress, port, listenEndpoint);
         }
 
-        [ConsoleCommand]
-        public static void StartServerAtIpPortListenEndpoint(string ip, ushort port, string? listenEndpoint = null)
+        public static void StartServerAtIpPortAndListenEndpoint(string ip, ushort port, string? listenEndpoint = null)
         {
             if (port == 0)
             {
@@ -150,7 +149,6 @@ namespace HasteLocalMultiplayerMod
             ConnectToIpPort(ipAddress, port);
         }
 
-        [ConsoleCommand]
         public static void ConnectToIpPort(string ip, ushort port)
         {
             if (port == 0)
@@ -167,11 +165,11 @@ namespace HasteLocalMultiplayerMod
         [ConsoleCommand]
         public static void ConnectToLoopback()
         {
-            ConnectToLoopbackPort(DEFAULT_PORT);
+            ConnectToLoopbackAtPort(DEFAULT_PORT);
         }
 
         [ConsoleCommand]
-        public static void ConnectToLoopbackPort(ushort port)
+        public static void ConnectToLoopbackAtPort(ushort port)
         {
             ConnectToIpPort("127.0.0.1", port);
         }
