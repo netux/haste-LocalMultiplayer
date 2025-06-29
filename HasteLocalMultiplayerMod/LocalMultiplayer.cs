@@ -13,6 +13,7 @@ namespace HasteLocalMultiplayerMod
     public class LocalMultiplayer
     {
         public const string DEFAULT_IP = "0.0.0.0";
+        public const ushort DEFAULT_PORT = 7457;
 
         private static ushort GetAvailableTcpPort()
         {
@@ -25,6 +26,11 @@ namespace HasteLocalMultiplayerMod
 
         static void ConfigureNetworkManager(NetworkManager networkManager, ushort port, string ip, string? listenEndpoint = null)
         {
+            if (port == 0)
+            {
+                port = GetAvailableTcpPort();
+            }
+
             UnityEngine.Object.Destroy(networkManager.NetworkConfig.NetworkTransport);
             UnityTransport unityTransport = networkManager.gameObject.AddComponent<UnityTransport>();
             networkManager.NetworkConfig.NetworkTransport = unityTransport;
@@ -36,7 +42,7 @@ namespace HasteLocalMultiplayerMod
         [ConsoleCommand]
         public static void StartServer()
         {
-            HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, GetAvailableTcpPort(), DEFAULT_IP));
+            HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, DEFAULT_PORT, DEFAULT_IP));
         }
         [ConsoleCommand]
         public static void StartServer(ushort port)
@@ -57,7 +63,7 @@ namespace HasteLocalMultiplayerMod
         [ConsoleCommand]
         public static void Connect()
         {
-            HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, GetAvailableTcpPort(), DEFAULT_IP));
+            HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, DEFAULT_PORT, DEFAULT_IP));
         }
         [ConsoleCommand]
         public static void Connect(ushort port)
