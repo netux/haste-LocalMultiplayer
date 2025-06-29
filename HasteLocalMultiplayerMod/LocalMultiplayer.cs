@@ -1,6 +1,7 @@
 using Landfall.Haste;
 using Landfall.Modding;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -16,6 +17,37 @@ namespace HasteLocalMultiplayerMod
         public const string DEFAULT_HOST_IP = "0.0.0.0";
         public const ushort DEFAULT_PORT = 7457;
 
+        private static bool TryParseIPEndPoint(string address, out IPEndPoint ipEndpoint)
+        {
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
+            ipEndpoint = null;
+#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
+
+            var addressSplit = address.Split(":", 2);
+            if (addressSplit.Length == 0)
+            {
+                return false;
+            }
+
+            IPAddress ipAddress;
+            int port = 0;
+
+            if (!IPAddress.TryParse(addressSplit[0], out ipAddress))
+            {
+                return false;
+            }
+
+            if (addressSplit.Length == 2)
+            {
+                if (!int.TryParse(addressSplit[1], out port))
+                {
+                    return false;
+                }
+            }
+
+            ipEndpoint = new IPEndPoint(ipAddress, port);
+            return true;
+        }
         private static ushort GetAvailableTcpPort()
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -51,16 +83,33 @@ namespace HasteLocalMultiplayerMod
         {
             StartServerAtPort(DEFAULT_PORT);
         }
+
         [ConsoleCommand]
         public static void StartServerAtPort(ushort port)
         {
             StartServerAtIpPort(DEFAULT_HOST_IP, port);
         }
+
         [ConsoleCommand]
         public static void StartServerAtIpPort(string ip, ushort port)
         {
             StartServerAtIpPortListenEndpoint(ip, port, null);
         }
+
+        [ConsoleCommand]
+        public static void StartServerAtAddress(string address)
+        {
+            if (!TryParseIPEndPoint(address, out IPEndPoint ipEndpoint))
+            {
+                Debug.LogError($"[{MOD_PREFIX}] Invalid address '{address}'");
+                return;
+            }
+
+            string ipAddress = ipEndpoint.Address.ToString();
+            ushort port = ipEndpoint.Port <= 0 ? DEFAULT_PORT : (ushort)ipEndpoint.Port;
+            StartServerAtIpPort(ipAddress, port);
+        }
+
         [ConsoleCommand]
         public static void StartServerAtIpPortListenEndpoint(string ip, ushort port, string? listenEndpoint = null)
         {
@@ -89,28 +138,43 @@ namespace HasteLocalMultiplayerMod
         }
 
         [ConsoleCommand]
-        public static void ConnectToLoopback()
+        public static void ConnectTo(string address)
         {
-            ConnectToLoopbackPort(DEFAULT_PORT);
+            if (!TryParseIPEndPoint(address, out IPEndPoint ipEndpoint))
+            {
+                Debug.LogError($"[{MOD_PREFIX}] Invalid address '{address}'");
+                return;
         }
-        [ConsoleCommand]
-        public static void ConnectToLoopbackPort(ushort port)
-        {
-            ConnectTo("127.0.0.1", port);
+
+            string ipAddress = ipEndpoint.Address.ToString();
+            ushort port = ipEndpoint.Port <= 0 ? DEFAULT_PORT : (ushort)ipEndpoint.Port;
+            ConnectToIpPort(ipAddress, port);
         }
 
         [ConsoleCommand]
-        public static void ConnectTo(string ip, ushort port)
+        public static void ConnectToIpPort(string ip, ushort port)
         {
             if (port == 0)
         {
-                Debug.LogError($"[{MOD_PREFIX}] Cannot use port 0! Consider using the default port {DEFAULT_PORT}");
+                Debug.LogError($"[{MOD_PREFIX}] Its not possible to connect to port 0!");
                 return;
             }
 
             Debug.Log($"[{MOD_PREFIX}] Connecting to {ip}:{port}...");
 
             HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, ip, port));
+        }
+
+        [ConsoleCommand]
+        public static void ConnectToLoopback()
+        {
+            ConnectToLoopbackPort(DEFAULT_PORT);
+        }
+
+        [ConsoleCommand]
+        public static void ConnectToLoopbackPort(ushort port)
+        {
+            ConnectToIpPort("127.0.0.1", port);
         }
 
         [ConsoleCommand]
