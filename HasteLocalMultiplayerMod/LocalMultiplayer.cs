@@ -12,7 +12,8 @@ namespace HasteLocalMultiplayerMod
     [LandfallPlugin]
     public class LocalMultiplayer
     {
-        public const string DEFAULT_IP = "0.0.0.0";
+        public const string MOD_PREFIX = "Local/LAN Multiplayer";
+        public const string DEFAULT_HOST_IP = "0.0.0.0";
         public const ushort DEFAULT_PORT = 7457;
 
         private static ushort GetAvailableTcpPort()
@@ -24,13 +25,8 @@ namespace HasteLocalMultiplayerMod
             return (ushort)port;
         }
 
-        static void ConfigureNetworkManager(NetworkManager networkManager, ushort port, string ip, string? listenEndpoint = null)
+        static void ConfigureNetworkManager(NetworkManager networkManager, string ip, ushort port, string? listenEndpoint = null)
         {
-            if (port == 0)
-            {
-                port = GetAvailableTcpPort();
-            }
-
             UnityEngine.Object.Destroy(networkManager.NetworkConfig.NetworkTransport);
             UnityTransport unityTransport = networkManager.gameObject.AddComponent<UnityTransport>();
             networkManager.NetworkConfig.NetworkTransport = unityTransport;
@@ -42,43 +38,58 @@ namespace HasteLocalMultiplayerMod
         [ConsoleCommand]
         public static void StartServer()
         {
-            HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, DEFAULT_PORT, DEFAULT_IP));
+            StartServerAtPort(DEFAULT_PORT);
         }
         [ConsoleCommand]
-        public static void StartServer(ushort port)
+        public static void StartServerAtPort(ushort port)
         {
-            HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, port, DEFAULT_IP));
+            StartServerAtIpPort(DEFAULT_HOST_IP, port);
         }
         [ConsoleCommand]
-        public static void StartServer(ushort port, string ip)
+        public static void StartServerAtIpPort(string ip, ushort port)
         {
-            HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, port, ip));
+            StartServerAtIpPortListenEndpoint(ip, port, null);
         }
         [ConsoleCommand]
-        public static void StartServer(ushort port, string ip, string listenEndpoint)
+        public static void StartServerAtIpPortListenEndpoint(string ip, ushort port, string? listenEndpoint = null)
         {
-            HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, port, ip, listenEndpoint));
+            if (port == 0)
+            {
+                port = GetAvailableTcpPort();
+            }
+
+            Debug.Log($"[{MOD_PREFIX}] Starting Server on {ip}:{port}");
+            if (listenEndpoint != null)
+            {
+                Debug.Log($"[{MOD_PREFIX}] Listen Endpoint: {listenEndpoint}");
+            }
+
+            HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, ip, port, listenEndpoint));
         }
 
         [ConsoleCommand]
-        public static void Connect()
+        public static void ConnectToLoopback()
         {
-            HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, DEFAULT_PORT, DEFAULT_IP));
+            ConnectToLoopbackPort(DEFAULT_PORT);
         }
         [ConsoleCommand]
-        public static void Connect(ushort port)
+        public static void ConnectToLoopbackPort(ushort port)
         {
-            HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, port, DEFAULT_IP));
+            ConnectTo("127.0.0.1", port);
         }
+
         [ConsoleCommand]
-        public static void Connect(ushort port, string ip)
+        public static void ConnectTo(string ip, ushort port)
         {
-            HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, port, ip));
-        }
-        [ConsoleCommand]
-        public static void Connect(ushort port, string ip, string? listenEndpoint = null)
+            if (port == 0)
         {
-            HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, port, ip));
+                Debug.LogError($"[{MOD_PREFIX}] Cannot use port 0! Consider using the default port {DEFAULT_PORT}");
+                return;
+            }
+
+            Debug.Log($"[{MOD_PREFIX}] Connecting to {ip}:{port}...");
+
+            HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, ip, port));
         }
     }
 }
