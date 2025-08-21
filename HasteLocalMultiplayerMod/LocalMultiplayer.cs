@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
+using Zorro.Core;
 using Zorro.Core.CLI;
 
 namespace HasteLocalMultiplayerMod
@@ -69,34 +70,26 @@ namespace HasteLocalMultiplayerMod
                 .ToArray();
         }
 
-        static void ConfigureNetworkManager(NetworkManager networkManager, string ip, ushort port, string? listenEndpoint = null)
+        [ConsoleCommand]
+        public static async Task StartServer()
         {
-            UnityEngine.Object.Destroy(networkManager.NetworkConfig.NetworkTransport);
-            UnityTransport unityTransport = networkManager.gameObject.AddComponent<UnityTransport>();
-            networkManager.NetworkConfig.NetworkTransport = unityTransport;
-            unityTransport.SetConnectionData(ip, port, listenEndpoint);
+            await StartServerAtPort(DEFAULT_PORT);
         }
 
         [ConsoleCommand]
-        public static void StartServer()
+        public static async Task StartServerAtPort(ushort port)
         {
-            StartServerAtPort(DEFAULT_PORT);
+            await StartServerAtIpPortAndListenEndpoint(DEFAULT_HOST_IP, port);
         }
 
         [ConsoleCommand]
-        public static void StartServerAtPort(ushort port)
+        public static async Task StartServerAtAddress(string address)
         {
-            StartServerAtIpPortAndListenEndpoint(DEFAULT_HOST_IP, port);
+            await StartServerAtAddressAndListenEndpoint(address, null);
         }
 
         [ConsoleCommand]
-        public static void StartServerAtAddress(string address)
-        {
-            StartServerAtAddressAndListenEndpoint(address, null);
-        }
-
-        [ConsoleCommand]
-        public static void StartServerAtAddressAndListenEndpoint(string address, string? listenEndpoint = null)
+        public static async Task StartServerAtAddressAndListenEndpoint(string address, string? listenEndpoint = null)
         {
             if (!TryParseIPEndPoint(address, out IPEndPoint ipEndpoint))
             {
@@ -106,10 +99,10 @@ namespace HasteLocalMultiplayerMod
 
             string ipAddress = ipEndpoint.Address.ToString();
             ushort port = ipEndpoint.Port <= 0 ? DEFAULT_PORT : (ushort)ipEndpoint.Port;
-            StartServerAtIpPortAndListenEndpoint(ipAddress, port, listenEndpoint);
+            await StartServerAtIpPortAndListenEndpoint(ipAddress, port, listenEndpoint);
         }
 
-        public static void StartServerAtIpPortAndListenEndpoint(string ip, ushort port, string? listenEndpoint = null)
+        public static async Task StartServerAtIpPortAndListenEndpoint(string ip, ushort port, string? listenEndpoint = null)
         {
             if (port == 0)
             {
@@ -122,7 +115,7 @@ namespace HasteLocalMultiplayerMod
                 Debug.Log($"[{MOD_PREFIX}] Listen Endpoint: {listenEndpoint}");
             }
 
-            HasteNetworking.SetState(HasteNetworking.State.Host, (networkManager) => ConfigureNetworkManager(networkManager, ip, port, listenEndpoint));
+            await SetLocalNetworkingState(HasteNetworking.State.SteamHost, ip, port, listenEndpoint);
 
             var availableLanIps = GetInterNetworkIpAddresses();
             if (availableLanIps.Length > 0)
@@ -135,8 +128,79 @@ namespace HasteLocalMultiplayerMod
             }
         }
 
+        private static async Task SetLocalNetworkingState(
+            HasteNetworking.State state,
+            string ip,
+            ushort port,
+            string? listenEndpoint
+        )
+        {
+            static void ConfigureNetworkManager(NetworkManager networkManager, string ip, ushort port, string? listenEndpoint = null)
+            {
+                UnityEngine.Object.Destroy(networkManager.NetworkConfig.NetworkTransport);
+                UnityTransport unityTransport = networkManager.gameObject.AddComponent<UnityTransport>();
+                networkManager.NetworkConfig.NetworkTransport = unityTransport;
+                unityTransport.SetConnectionData(ip, port, listenEndpoint);
+            }
+
+            if (NetworkManager.Singleton)
+            {
+                NetworkManager.Singleton.Shutdown(false);
+                while (NetworkManager.Singleton.ShutdownInProgress)
+                {
+                    await Awaitable.NextFrameAsync();
+                }
+                UnityEngine.Object.Destroy(NetworkManager.Singleton.gameObject);
+                await Awaitable.NextFrameAsync();
+            }
+
+            if (state == HasteNetworking.State.Off)
+            {
+                return;
+            }
+
+
+            UnityEngine.Object.Instantiate(SingletonAsset<StaticReferences>.Instance.NetworkManagerPrefab);
+            await Awaitable.NextFrameAsync();
+
+            if (NetworkManager.Singleton == null)
+            {
+                Debug.LogError($"[{MOD_PREFIX}] NetworkManager null a frame after instantiation? Aborting setting network state.");
+                return;
+            }
+
+            NetworkManager.Singleton.OnConnectionEvent += HasteNetworking.OnConnectionEvent;
+            NetworkManager.Singleton.OnPreShutdown += delegate
+            {
+                HasteNetworking._currentConfig = HasteNetworking.Config.Off;
+            };
+
+            bool isHost = state == HasteNetworking.State.SteamHost;
+            if (isHost)
+            {
+                ConfigureNetworkManager(NetworkManager.Singleton, ip, port);
+            }
+            else
+            {
+                ConfigureNetworkManager(NetworkManager.Singleton, ip, port, listenEndpoint);
+            }
+
+            bool wasSuccessful = isHost
+                ? NetworkManager.Singleton.StartClient()
+                : NetworkManager.Singleton.StartHost();
+            if (!wasSuccessful)
+            {
+                Debug.LogError($"[{MOD_PREFIX}] Connection unsuccessful :(");
+                return;
+            }
+
+            HasteNetworking._currentConfig = state == HasteNetworking.State.SteamHost
+                ? HasteNetworking.Config.SteamHost
+                : HasteNetworking.Config.SteamClient(new Steamworks.CSteamID()); // this *just* works, surprisingly
+        }
+
         [ConsoleCommand]
-        public static void ConnectTo(string address)
+        public static async Task ConnectTo(string address)
         {
             if (!TryParseIPEndPoint(address, out IPEndPoint ipEndpoint))
             {
@@ -146,10 +210,10 @@ namespace HasteLocalMultiplayerMod
 
             string ipAddress = ipEndpoint.Address.ToString();
             ushort port = ipEndpoint.Port <= 0 ? DEFAULT_PORT : (ushort)ipEndpoint.Port;
-            ConnectToIpPort(ipAddress, port);
+            await ConnectToIpPort(ipAddress, port);
         }
 
-        public static void ConnectToIpPort(string ip, ushort port)
+        public static async Task ConnectToIpPort(string ip, ushort port)
         {
             if (port == 0)
         {
@@ -159,19 +223,19 @@ namespace HasteLocalMultiplayerMod
 
             Debug.Log($"[{MOD_PREFIX}] Connecting to {ip}:{port}...");
 
-            HasteNetworking.SetState(HasteNetworking.State.Client, (networkManager) => ConfigureNetworkManager(networkManager, ip, port));
+            await SetLocalNetworkingState(HasteNetworking.State.SteamClient, ip, port, null);
         }
 
         [ConsoleCommand]
-        public static void ConnectToLoopback()
+        public static async Task ConnectToLoopback()
         {
-            ConnectToLoopbackAtPort(DEFAULT_PORT);
+            await ConnectToLoopbackAtPort(DEFAULT_PORT);
         }
 
         [ConsoleCommand]
-        public static void ConnectToLoopbackAtPort(ushort port)
+        public static async Task ConnectToLoopbackAtPort(ushort port)
         {
-            ConnectToIpPort("127.0.0.1", port);
+            await ConnectToIpPort("127.0.0.1", port);
         }
 
         [ConsoleCommand]
@@ -179,7 +243,7 @@ namespace HasteLocalMultiplayerMod
         {
             Debug.Log($"[{MOD_PREFIX}] Disconnecting");
 
-            HasteNetworking.SetState(HasteNetworking.State.Off, (networkManager) => { /* no-op */ });
+            HasteNetworking.SetState(HasteNetworking.Config.Off);
         }
     }
 }
